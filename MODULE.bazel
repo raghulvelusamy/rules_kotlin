@@ -32,7 +32,6 @@ bazel_dep(
 rules_kotlin_extensions = use_extension(
     "//src/main/starlark/core/repositories:bzlmod_setup.bzl",
     "rules_kotlin_extensions",
-    dev_dependency = True,
 )
 
 use_repo(
@@ -61,14 +60,12 @@ use_repo(remote_android_extensions, "android_gmaven_r8", "android_tools")
 
 bazel_dep(
     name = "rules_jvm_external",
-    dev_dependency = True,
     version = "5.3",
 )
 
 maven = use_extension(
     "@rules_jvm_external//:extensions.bzl",
     "maven",
-    dev_dependency = True,
 )
 
 maven.install(

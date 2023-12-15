@@ -47,6 +47,7 @@ def kt_configure():
             "com.squareup.moshi:moshi:1.15.0",
             "com.squareup.moshi:moshi-kotlin:1.15.0",
             "com.squareup.moshi:moshi-kotlin-codegen:1.15.0",
+            "com.google.auto.service:auto-service-annotations:jar:1.1.1",
         ],
         repositories = [
             "https://maven-central.storage.googleapis.com/repos/central/data/",

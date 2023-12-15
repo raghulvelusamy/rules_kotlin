@@ -26,6 +26,8 @@ import io.bazel.kotlin.builder.toolchain.KotlinToolchain
 import io.bazel.kotlin.builder.utils.IS_JVM_SOURCE_FILE
 import io.bazel.kotlin.builder.utils.bazelRuleKind
 import io.bazel.kotlin.builder.utils.jars.JarCreator
+import io.bazel.kotlin.builder.utils.jars.JarHelper
+import io.bazel.kotlin.builder.utils.jars.JarHelper.Companion.SERVICES_DIR
 import io.bazel.kotlin.builder.utils.jars.SourceJarExtractor
 import io.bazel.kotlin.builder.utils.partitionJvmSources
 import io.bazel.kotlin.model.JvmCompilationTask
@@ -42,6 +44,9 @@ import java.nio.file.Paths
 import java.util.Base64
 import java.util.stream.Collectors.toList
 import java.util.stream.Stream
+import kotlin.io.path.exists
+
+private const val SOURCE_JARS_DIR = "_srcjars"
 
 fun JvmCompilationTask.codeGenArgs(): CompilationArgs = CompilationArgs()
   .absolutePaths(info.friendPathsList) {
@@ -446,8 +451,8 @@ internal fun JvmCompilationTask.expandWithSourceJarSources(): JvmCompilationTask
   } else {
     expandWithSources(
       SourceJarExtractor(
-        destDir = Paths.get(directories.temp).resolve("_srcjars"),
-        fileMatcher = IS_JVM_SOURCE_FILE,
+        destDir = Paths.get(directories.temp).resolve(SOURCE_JARS_DIR),
+        fileMatcher = { str: String -> IS_JVM_SOURCE_FILE.test(str) || "/$SERVICES_DIR" in str },
       ).also {
         it.jarFiles.addAll(inputs.sourceJarsList.map { p -> Paths.get(p) })
         it.execute()
@@ -472,23 +477,26 @@ private val Directories.incrementalData
  * Create a new [JvmCompilationTask] with sources found in the generatedSources directory. This should be run after
  * annotation processors have been run.
  */
-fun JvmCompilationTask.expandWithGeneratedSources(): JvmCompilationTask =
-  expandWithSources(
-    Stream.of(directories.generatedSources, directories.generatedJavaSources)
-      .map { s -> Paths.get(s) }
-      .flatMap { p -> walk(p) }
-      .filter { !isDirectory(it) }
-      .map { it.toString() }
-      .distinct()
-      .iterator(),
-  )
+fun JvmCompilationTask.expandWithGeneratedSources(): JvmCompilationTask {
+    return expandWithSources(
+        Stream.of(directories.generatedSources, directories.generatedJavaSources)
+            .map { s -> Paths.get(s) }
+            .flatMap { p -> walk(p) }
+            .filter { !isDirectory(it) }
+            .map { it.toString() }
+            .distinct()
+            .iterator(),
+    )
+}
 
 private fun JvmCompilationTask.expandWithSources(sources: Iterator<String>): JvmCompilationTask =
   updateBuilder { builder ->
-    sources.filterOutNonCompilableSources().partitionJvmSources(
-      { builder.inputsBuilder.addKotlinSources(it) },
-      { builder.inputsBuilder.addJavaSources(it) },
-    )
+    sources.copyMetaFilesToGenClasses(directories)
+      .filterOutNonCompilableSources()
+      .partitionJvmSources(
+        { builder.inputsBuilder.addKotlinSources(it) },
+        { builder.inputsBuilder.addJavaSources(it) },
+      )
   }
 
 private fun JvmCompilationTask.updateBuilder(
@@ -498,6 +506,27 @@ private fun JvmCompilationTask.updateBuilder(
     block(it)
     it.build()
   }
+
+/**
+ * Copy generated resources from KSP task into generated folder
+ */
+internal fun Iterator<String>.copyMetaFilesToGenClasses(directories: Directories): Iterator<String> {
+    val result = mutableListOf<String>()
+    this.forEach {
+        if ("/${JarHelper.MANIFEST_DIR}" in it) {
+            val path = Paths.get(it)
+            val srcJarsPath = Paths.get(directories.temp, SOURCE_JARS_DIR)
+            if (srcJarsPath.exists()) {
+                val relativePath = srcJarsPath.relativize(path)
+                val destPath = Paths.get(directories.generatedClasses).resolve(relativePath)
+                destPath.parent.toFile().mkdirs()
+                Files.copy(path, destPath)
+            }
+        }
+        result.add(it)
+    }
+    return result.iterator()
+}
 
 /**
  * Only keep java and kotlin files for the iterator. Filter our all other non-compilable files.

@@ -13,10 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package src.test.data.jvm.ksp;
+package coffee
 
-import com.google.auto.service.AutoService;
+import com.squareup.moshi.Moshi
 
-@AutoService(Object.class)
-public class CoffeeAppService {
+class CoffeeApp {
+
+  companion object {
+
+    private val adapter = CoffeeAppModelJsonAdapter(Moshi.Builder().build())
+    private val d = AutoValue_CoffeeAppJavaModel.Builder()
+      .setCoffeeAppModel(CoffeeAppModel("1"))
+      .build()
+  }
 }

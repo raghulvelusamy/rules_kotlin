@@ -23,7 +23,7 @@ kt_ksp_plugin(
 
 kt_jvm_library(
     name = "moshi_lib",
-    srcs = ["MyAwesomeTestClass.kt"],
+    srcs = ["CoffeeAppModel.kt"],
     plugins = [":moshi"],
     deps = [
         "@kotlin_rules_maven//:com_squareup_moshi_moshi",
